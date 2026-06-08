@@ -277,6 +277,42 @@
       return text;
     }
 
+    async function askGeminiVision(prompt, imageBase64, apiKey, model = "gemini-2.0-flash") {
+      const matches = imageBase64.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+      if (!matches) throw new Error("유효하지 않은 이미지 형식입니다.");
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+
+      let targetModel = model;
+      if (targetModel.includes("gemini-1.5")) targetModel = "gemini-2.5-flash";
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+      const body = {
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: mimeType, data: base64Data } }
+          ]
+        }]
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `Gemini Vision Error (Status ${res.status})`);
+      }
+
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Gemini가 캐릭터 분석 결과를 반환하지 않았습니다.");
+      return text.trim();
+    }
+
     async function askTextGenerator(prompt, engine, keys, useWebSearch = false) {
       if (engine === "claude") {
         if (!keys.claudeKey) throw new Error("설정페이지에서 Claude API 키를 입력해주세요.");
@@ -287,11 +323,11 @@
       }
     }
 
-    async function geminiImage(prompt, apiKey) {
+    async function geminiImage(prompt, apiKey, aspect = "16:9") {
       const endpoints = [
         {
           url: `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
-          body: { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: "16:9" } },
+          body: { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: aspect } },
           parse: (data) => {
             if (data.error) throw new Error(data.error.message);
             const b64 = data.predictions?.[0]?.bytesBase64Encoded;
@@ -301,7 +337,7 @@
         },
         {
           url: `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
-          body: { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: "16:9" } },
+          body: { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: aspect } },
           parse: (data) => {
             if (data.error) throw new Error(data.error.message);
             const b64 = data.predictions?.[0]?.bytesBase64Encoded;
@@ -373,6 +409,7 @@
       { id: "stickman", name: "스틱맨 애니메이션", eng: "minimalist stickman animation style, simple black line art on white background" },
       { id: "animation2", name: "애니메이션 2", eng: "anime art style, vibrant colors, detailed cel-shaded illustration" },
       { id: "graphic_novel", name: "유럽풍 그래픽 노블", eng: "European graphic novel style, detailed ink illustration, dramatic cross-hatching, vintage comic book aesthetic" },
+      { id: "cartoon_cat", name: "귀여운 손그림 웹툰", eng: "cute minimalist hand-drawn webtoon style, simple colored line art, funny cartoon emoticon, doodle drawing on pure white background, comic sticker design" },
     ];
 
     const CATEGORIES = ["IT/기술", "경제/금융", "역사", "과학", "라이프스타일", "건강", "사회/이슈", "스포츠", "엔터테인먼트", "심리/자기계발"];
@@ -573,7 +610,7 @@
                 </div>
 
                 <div>
-                  <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 6, fontWeight: 700 }}>CORS 프록시 주소 (선택)</div>
+                  <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 6, 700: 700 }}>CORS 프록시 주소 (선택)</div>
                   <input
                     value={keys.claudeProxy}
                     onChange={(e) => updateKey("claudeProxy", e.target.value)}
@@ -584,6 +621,80 @@
                 </div>
               </div>
             )}
+
+            {/* Agent / Generation Settings (Flow) */}
+            <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 16, marginBottom: 16 }}>
+              <div style={{ color: "#e8eaf0", fontSize: 14, fontWeight: 800, marginBottom: 12 }}>⚙️ 에이전트 및 미디어 생성 설정</div>
+              
+              {/* Confirm before generating */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ color: "#8b95a5", fontSize: 11, fontWeight: 700, marginBottom: 6 }}>생성하기 전에 확인</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => updateKey("confirmBeforeGen", "always")}
+                    style={{
+                      flex: 1, padding: "8px", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700,
+                      background: (keys.confirmBeforeGen || "always") === "always" ? "rgba(79, 134, 247, 0.15)" : "rgba(20, 24, 41, 0.4)",
+                      border: `1px solid ${(keys.confirmBeforeGen || "always") === "always" ? "#4f86f7" : "rgba(255,255,255,0.06)"}`,
+                      color: (keys.confirmBeforeGen || "always") === "always" ? "#fff" : "#8b95a5", transition: "all 0.15s"
+                    }}>
+                    항상 (수동 확인)
+                  </button>
+                  <button onClick={() => updateKey("confirmBeforeGen", "never")}
+                    style={{
+                      flex: 1, padding: "8px", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700,
+                      background: keys.confirmBeforeGen === "never" ? "rgba(79, 134, 247, 0.15)" : "rgba(20, 24, 41, 0.4)",
+                      border: `1px solid ${keys.confirmBeforeGen === "never" ? "#4f86f7" : "rgba(255,255,255,0.06)"}`,
+                      color: keys.confirmBeforeGen === "never" ? "#fff" : "#8b95a5", transition: "all 0.15s"
+                    }}>
+                    안 함 (즉시 일괄 생성)
+                  </button>
+                </div>
+              </div>
+
+              {/* Image Aspect Ratio */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ color: "#8b95a5", fontSize: 11, fontWeight: 700, marginBottom: 6 }}>이미지 생성 규격 (종횡비)</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {["16:9", "4:3", "1:1", "3:4", "9:16"].map(aspect => (
+                    <button key={aspect} onClick={() => updateKey("imageAspect", aspect)}
+                      style={{
+                        flex: 1, padding: "6px 0", borderRadius: 5, cursor: "pointer", fontSize: 11, fontWeight: 700,
+                        background: (keys.imageAspect || "16:9") === aspect ? "rgba(245, 158, 11, 0.15)" : "rgba(20, 24, 41, 0.4)",
+                        border: `1px solid ${(keys.imageAspect || "16:9") === aspect ? "#f59e0b" : "rgba(255,255,255,0.06)"}`,
+                        color: (keys.imageAspect || "16:9") === aspect ? "#fff" : "#8b95a5", transition: "all 0.15s"
+                      }}>
+                      {aspect}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Video Aspect Ratio & Model */}
+              <div>
+                <div style={{ color: "#8b95a5", fontSize: 11, fontWeight: 700, marginBottom: 6 }}>동영상 생성 설정</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <select
+                    value={keys.videoAspect || "16:9"}
+                    onChange={(e) => updateKey("videoAspect", e.target.value)}
+                    className="form-input"
+                    style={{ flex: 1, padding: "6px 12px", fontSize: 11, height: "32px", background: "var(--card2)" }}
+                  >
+                    <option value="16:9">종횡비: 16:9 (가로형)</option>
+                    <option value="9:16">종횡비: 9:16 (세로형)</option>
+                  </select>
+                  
+                  <select
+                    value={keys.videoModel || "veo-2.0-generate-001"}
+                    onChange={(e) => updateKey("videoModel", e.target.value)}
+                    className="form-input"
+                    style={{ flex: 1, padding: "6px 12px", fontSize: 11, height: "32px", background: "var(--card2)" }}
+                  >
+                    <option value="veo-2.0-generate-001">Omni Flash (Veo 2.0)</option>
+                    <option value="veo-3.0-fast-generate-001">Veo 3.0 Fast</option>
+                  </select>
+                </div>
+              </div>
+            </div>
 
             <button onClick={onClose} className="btn-gradient" style={{ width: "100%", padding: 12, fontSize: 14, marginTop: 10 }}>
               설정 저장 후 닫기
@@ -1037,6 +1148,11 @@
       const [err, setErr] = useState("");
       const [done, setDone] = useState(false);
 
+      const [charImg, setCharImg] = useState("");
+      const [characterDesc, setCharacterDesc] = useState("");
+      const [analyzingChar, setAnalyzingChar] = useState(false);
+      const fileInputRef = useRef(null);
+
       const styleObj = STYLES.find((s) => s.id === style) || STYLES[0];
       const charPfx = charType === "없음" 
         ? "" 
@@ -1044,8 +1160,10 @@
           ? "Korean person, " 
           : "Caucasian Western person, ";
 
-      const buildPrompt = (scene) =>
-        `${charPfx}${scene.imagePrompt}, ${styleObj.eng}, no text, no watermark, no letters, no logos, no signs`;
+      const buildPrompt = (scene) => {
+        const charRef = characterDesc ? `Protagonist character description: (${characterDesc}), ` : "";
+        return `${charRef}${charPfx}${scene.imagePrompt}, ${styleObj.eng}, no text, no watermark, no letters, no logos, no signs`;
+      };
 
       const genAll = async () => {
         if (!keys.geminiKey) { setErr("Google API 키가 공백입니다. 키를 입력하세요."); return; }
@@ -1053,7 +1171,7 @@
         for (let i = 0; i < scenes.length; i++) {
           setGenIdx(i);
           try {
-            const img = await geminiImage(buildPrompt(scenes[i]), keys.geminiKey);
+            const img = await geminiImage(buildPrompt(scenes[i]), keys.geminiKey, keys.imageAspect || "16:9");
             setImages((p) => ({ ...p, [scenes[i].id]: img }));
           } catch (e) { 
             console.error(`Scene ${i + 1} 생성 에러:`, e.message); 
@@ -1068,11 +1186,54 @@
         if (!keys.geminiKey) { setErr("Google API 키를 입력해주세요."); return; }
         setErr(""); setGenIdx(scene.id);
         try {
-          const img = await geminiImage(buildPrompt(scene), keys.geminiKey);
+          const img = await geminiImage(buildPrompt(scene), keys.geminiKey, keys.imageAspect || "16:9");
           setImages((p) => ({ ...p, [scene.id]: img }));
         } catch (e) { setErr(`개별 생성 오류: ${e.message}`); }
         setGenIdx(-1);
       };
+
+      const handleCharUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = reader.result;
+          setCharImg(base64);
+          await runCharacterAnalysis(base64);
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const runCharacterAnalysis = async (imgBase64) => {
+        if (!keys.geminiKey) {
+          setErr("Google API 키가 설정되어 있어야 캐릭터 이미지를 분석할 수 있습니다.");
+          return;
+        }
+        setAnalyzingChar(true);
+        setErr("");
+        try {
+          const promptText = "Describe this cartoon/drawing character in maximum detail for a text-to-image prompt. Focus on the main subject species (e.g. cat, boy, girl, robot), key colors, hair style, facial expression, clothing, accessories, and artistic style. Write it in English as a single short description (under 35 words). Do not include words like 'here is' or intro phrases. Output only the description.";
+          const desc = await askGeminiVision(promptText, imgBase64, keys.geminiKey, keys.geminiModel || "gemini-2.0-flash");
+          setCharacterDesc(desc);
+        } catch (e) {
+          setErr(`캐릭터 분석 실패: ${e.message}`);
+        }
+        setAnalyzingChar(false);
+      };
+
+      const clearChar = () => {
+        setCharImg("");
+        setCharacterDesc("");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      };
+
+      useEffect(() => {
+        if (keys.confirmBeforeGen === "never" && Object.keys(images).length === 0 && genIdx === -1 && !done) {
+          setTimeout(() => {
+            genAll();
+          }, 600);
+        }
+      }, []);
 
       const genCount = Object.keys(images).length;
 
@@ -1123,6 +1284,54 @@
                 style={{ padding: "6px 12px", fontSize: 12, height: 32 }}
               />
               {keys.geminiKey && <div style={{ color: "#10b981", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>✓ 로드됨</div>}
+            </div>
+
+            {/* Character Reference Card */}
+            <div className="glass-card" style={{ padding: "20px", marginBottom: 20, display: "grid", gridTemplateColumns: charImg ? "80px 1fr" : "1fr", gap: 16, alignItems: "center" }}>
+              {charImg && (
+                <div style={{ width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", position: "relative" }}>
+                  <img src={charImg} alt="Character Reference" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <button onClick={clearChar} style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: 18, height: 18, fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                </div>
+              )}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>👤</span>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: "#e8eaf0" }}>주인공 캐릭터 지정 (Image-to-Character 일관성)</span>
+                  <span style={{ fontSize: 11, background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>추천</span>
+                </div>
+                <div style={{ color: "#8b95a5", fontSize: 11, marginBottom: 10, lineHeight: 1.4 }}>
+                  주인공으로 삼고 싶은 고양이, 인물 등의 그림 사진을 업로드해 보세요! AI가 캐릭터 생김새를 분석해 모든 장면에서 외형이 일관성 있게 드로잉되도록 프롬프트 튜닝을 실행합니다.
+                </div>
+                
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleCharUpload}
+                    style={{ display: "none" }}
+                  />
+                  <button onClick={() => fileInputRef.current.click()} disabled={analyzingChar}
+                    style={{
+                      background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#e8eaf0",
+                      padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
+                    }}>
+                    {analyzingChar ? "⏳ 이미지 캐릭터 분석 중..." : charImg ? "🔄 이미지 변경" : "📂 캐릭터 이미지 업로드"}
+                  </button>
+
+                  {characterDesc && (
+                    <input
+                      type="text"
+                      value={characterDesc}
+                      onChange={(e) => setCharacterDesc(e.target.value)}
+                      placeholder="캐릭터 프롬프트 자동 기입 완료"
+                      className="form-input"
+                      style={{ flex: 1, padding: "6px 12px", fontSize: 11, height: "32px", border: "1px solid rgba(245, 158, 11, 0.3)" }}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
 
             <ErrorBox msg={err} />
@@ -1213,6 +1422,10 @@
       const playQueueRef = useRef([]);
       const activeUtteranceRef = useRef(null);
 
+      const [pitch, setPitch] = useState(1.0);
+      const [rate, setRate] = useState(1.05);
+      const [persona, setPersona] = useState("default");
+
       useEffect(() => {
         const load = () => {
           const v = speechSynthesis.getVoices();
@@ -1220,7 +1433,6 @@
           const list = kr.length > 0 ? kr : v.slice(0, 10);
           setVoices(list);
           if (list.length > 0) {
-            // Prefer a natural voice if available
             const preferred = list.find(x => x.name.includes("Google") || x.name.includes("Natural"));
             setVoice(preferred ? preferred.name : list[0].name);
           }
@@ -1230,6 +1442,29 @@
         return () => speechSynthesis.cancel();
       }, []);
 
+      const applyPersona = (p) => {
+        setPersona(p);
+        if (p === "default") {
+          setPitch(1.0);
+          setRate(1.05);
+        } else if (p === "female_clear") {
+          setPitch(1.25);
+          setRate(1.08);
+        } else if (p === "female_calm") {
+          setPitch(1.05);
+          setRate(0.95);
+        } else if (p === "male_trusted") {
+          setPitch(0.85);
+          setRate(1.0);
+        } else if (p === "child_cute") {
+          setPitch(1.45);
+          setRate(1.1);
+        } else if (p === "radio_dj") {
+          setPitch(0.92);
+          setRate(0.88);
+        }
+      };
+
       const speak = (text, idx = -1, onEndCallback = null) => {
         speechSynthesis.cancel();
         
@@ -1237,7 +1472,8 @@
         const selectedVoiceObj = voices.find((x) => x.name === voice);
         if (selectedVoiceObj) u.voice = selectedVoiceObj;
         u.lang = "ko-KR"; 
-        u.rate = 1.05;
+        u.pitch = pitch;
+        u.rate = rate;
         
         u.onstart = () => {
           setPlaying(idx);
@@ -1269,7 +1505,6 @@
         stopSpeak();
         setFullSpeechPlaying(true);
         
-        // Build sequence queue
         let currentIdx = 0;
         
         const playNext = () => {
@@ -1335,6 +1570,50 @@
             {/* Voice selector */}
             <div className="glass-card" style={{ padding: "28px", marginBottom: 20 }}>
               <div style={{ color: "#8b95a5", fontSize: 13, fontWeight: 700, marginBottom: 16 }}>🔊 한국어 성우 선택 (브라우저 내장 음성합성 엔진)</div>
+              
+              {/* Persona selection */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ color: "#8b95a5", fontSize: 11, fontWeight: 700, marginBottom: 8 }}>성우 목소리 스타일 (페르소나)</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {[
+                    { id: "default", label: "기본 낭독" },
+                    { id: "female_clear", label: "맑은 여성 톤" },
+                    { id: "female_calm", label: "차분한 여성 톤" },
+                    { id: "male_trusted", label: "신뢰감 남성 톤" },
+                    { id: "child_cute", label: "귀여운 아동 톤" },
+                    { id: "radio_dj", label: "라디오 DJ 톤" },
+                  ].map(p => (
+                    <button key={p.id} onClick={() => applyPersona(p.id)}
+                      style={{
+                        padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700,
+                        background: persona === p.id ? "rgba(245, 158, 11, 0.15)" : "rgba(20, 24, 41, 0.4)",
+                        border: `1px solid ${persona === p.id ? "#f59e0b" : "rgba(255, 255, 255, 0.06)"}`,
+                        color: persona === p.id ? "#fff" : "#8b95a5", transition: "all 0.15s"
+                      }}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pitch & Rate Tuning Sliders */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20, background: "rgba(20,24,41,0.3)", padding: 14, borderRadius: 8, border: "1px solid rgba(255,255,255,0.03)" }}>
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 11, fontWeight: 700, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+                    <span>🔊 목소리 높낮이 (Pitch)</span>
+                    <span style={{ color: "#f59e0b" }}>x{pitch.toFixed(2)}</span>
+                  </div>
+                  <input type="range" min="0.5" max="2.0" step="0.05" value={pitch} onChange={(e) => { setPitch(parseFloat(e.target.value)); setPersona("custom"); }} style={{ width: "100%", accentColor: "#f59e0b" }} />
+                </div>
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 11, fontWeight: 700, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+                    <span>⚡ 낭독 속도 (Speed)</span>
+                    <span style={{ color: "#f59e0b" }}>x{rate.toFixed(2)}</span>
+                  </div>
+                  <input type="range" min="0.5" max="2.0" step="0.05" value={rate} onChange={(e) => { setRate(parseFloat(e.target.value)); setPersona("custom"); }} style={{ width: "100%", accentColor: "#f59e0b" }} />
+                </div>
+              </div>
+
               {voices.length === 0 ? (
                 <div style={{ color: "#4e5968", fontSize: 13, padding: "10px", background: "rgba(20,24,41,0.3)", borderRadius: 8 }}>음성 라이브러리를 탐색하는 중입니다... (한국어 음성이 활성화되어 있어야 청취가 가능합니다)</div>
               ) : (
@@ -1892,7 +2171,11 @@ ${result.seasonal}
           geminiModel: localStorage.getItem("gemini_model") || "gemini-2.0-flash",
           claudeKey: localStorage.getItem("claude_api_key") || "",
           claudeProxy: localStorage.getItem("claude_proxy_url") || "",
-          engine: localStorage.getItem("text_engine") || "gemini"
+          engine: localStorage.getItem("text_engine") || "gemini",
+          confirmBeforeGen: localStorage.getItem("confirm_before_gen") || "always",
+          imageAspect: localStorage.getItem("image_aspect") || "16:9",
+          videoAspect: localStorage.getItem("video_aspect") || "16:9",
+          videoModel: localStorage.getItem("video_model") || "veo-2.0-generate-001"
         };
       });
 
@@ -1903,6 +2186,10 @@ ${result.seasonal}
         localStorage.setItem("claude_api_key", keys.claudeKey);
         localStorage.setItem("claude_proxy_url", keys.claudeProxy);
         localStorage.setItem("text_engine", keys.engine);
+        localStorage.setItem("confirm_before_gen", keys.confirmBeforeGen || "always");
+        localStorage.setItem("image_aspect", keys.imageAspect || "16:9");
+        localStorage.setItem("video_aspect", keys.videoAspect || "16:9");
+        localStorage.setItem("video_model", keys.videoModel || "veo-2.0-generate-001");
       }, [keys]);
 
       return (
