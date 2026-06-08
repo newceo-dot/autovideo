@@ -236,13 +236,13 @@
       
       const body = {
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        generationConfig: {}
       };
 
       if (useWebSearch) {
         body.tools = [{ googleSearch: {} }];
+      } else {
+        body.generationConfig.responseMimeType = "application/json";
       }
 
       const res = await fetch(url, {
