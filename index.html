@@ -227,8 +227,8 @@
       return text;
     }
 
-    async function askGemini(prompt, apiKey, useWebSearch = false) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    async function askGemini(prompt, apiKey, model = "gemini-2.0-flash", useWebSearch = false) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       
       const body = {
         contents: [{ parts: [{ text: prompt }] }],
@@ -264,7 +264,7 @@
         return await askClaude(prompt, keys.claudeKey, keys.claudeProxy, 4000, useWebSearch);
       } else {
         if (!keys.geminiKey) throw new Error("설정페이지에서 Gemini API 키를 입력해주세요.");
-        return await askGemini(prompt, keys.geminiKey, useWebSearch);
+        return await askGemini(prompt, keys.geminiKey, keys.geminiModel || "gemini-2.0-flash", useWebSearch);
       }
     }
 
@@ -500,6 +500,26 @@
                 </button>
               </div>
             </div>
+
+            {/* Gemini Model Selection */}
+            {keys.engine === "gemini" && (
+              <div style={{ marginBottom: 16 }} className="animate-slideup">
+                <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 6, fontWeight: 700 }}>Gemini 모델 선택</div>
+                <select
+                  value={keys.geminiModel || "gemini-2.0-flash"}
+                  onChange={(e) => updateKey("geminiModel", e.target.value)}
+                  className="form-input"
+                  style={{ background: "var(--card2)", color: "#e8eaf0", cursor: "pointer", height: "42px" }}
+                >
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (추천 - 가장 빠름)</option>
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (대체용 - 2.0 Flash 한도 초과 시)</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (고도화 분석 - 퀄리티 위주)</option>
+                </select>
+                <div style={{ fontSize: 11, color: "#4e5968", marginTop: 6 }}>
+                  * Free Tier의 분당 요청 한도(Rate Limit) 초과 에러가 발생할 경우, 다른 모델로 스위칭하여 즉시 우회할 수 있습니다.
+                </div>
+              </div>
+            )}
 
             {/* Claude API Key & Proxy */}
             {keys.engine === "claude" && (
@@ -1545,6 +1565,7 @@ ${inputText}
       const [keys, setKeys] = useState(() => {
         return {
           geminiKey: localStorage.getItem("gemini_api_key") || "",
+          geminiModel: localStorage.getItem("gemini_model") || "gemini-2.0-flash",
           claudeKey: localStorage.getItem("claude_api_key") || "",
           claudeProxy: localStorage.getItem("claude_proxy_url") || "",
           engine: localStorage.getItem("text_engine") || "gemini"
@@ -1554,6 +1575,7 @@ ${inputText}
       // Synchronize keys with localStorage on changes
       useEffect(() => {
         localStorage.setItem("gemini_api_key", keys.geminiKey);
+        localStorage.setItem("gemini_model", keys.geminiModel);
         localStorage.setItem("claude_api_key", keys.claudeKey);
         localStorage.setItem("claude_proxy_url", keys.claudeProxy);
         localStorage.setItem("text_engine", keys.engine);
