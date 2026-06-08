@@ -671,7 +671,8 @@
           
           onNext(arr, keyword, category);
         } catch (e) { 
-          setErr(`${keys.engine === "claude" ? "Claude" : "Gemini"} 실행 오류: ${e.message}\n(설정 탭에서 API 키가 올바른지 확인해 주세요. Claude 엔진의 경우 CORS 프록시 설정이 필요할 수 있습니다.)`); 
+          const activeModel = keys.engine === "gemini" ? (keys.geminiModel || "gemini-2.0-flash") : "claude-3-5-sonnet";
+          setErr(`${keys.engine === "claude" ? "Claude" : `Gemini (${activeModel})`} 실행 오류: ${e.message}\n(설정 탭에서 API 키가 올바른지 확인해 주세요. Claude 엔진의 경우 CORS 프록시 설정이 필요할 수 있습니다.)`); 
         }
         setLoading(false);
       };
@@ -792,7 +793,10 @@
             throw new Error("대본 데이터 형식이 올바르지 않습니다.");
           }
           onNext(data.title || selected, data.scenes, selected);
-        } catch (e) { setErr(`대본 설계 오류: ${e.message}`); }
+        } catch (e) { 
+          const activeModel = keys.engine === "gemini" ? (keys.geminiModel || "gemini-2.0-flash") : "claude-3-5-sonnet";
+          setErr(`대본 설계 오류 (호출 모델: ${activeModel}): ${e.message}`); 
+        }
         setLoading(false);
       };
 
@@ -1464,7 +1468,8 @@ ${inputText}
 
           onNext(data.title || "블로그 변환 프로젝트", data.scenes, convertType, data.originalSummary);
         } catch (e) { 
-          setErr(`블로그 변환 실패: ${e.message}\n(API 키를 제대로 입력했는지 설정 탭을 다시 체크해보세요.)`); 
+          const activeModel = keys.engine === "gemini" ? (keys.geminiModel || "gemini-2.0-flash") : "claude-3-5-sonnet";
+          setErr(`블로그 변환 실패 (호출 모델: ${activeModel}): ${e.message}\n(API 키가 올바른지 혹은 모델 설정을 다시 확인해 주세요.)`); 
         }
         setLoading(false);
       };
