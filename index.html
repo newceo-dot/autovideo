@@ -253,7 +253,22 @@
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `Gemini API Error (Status ${res.status})`);
+        let customMsg = errData.error?.message || `Gemini API Error (Status ${res.status})`;
+        
+        try {
+          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            if (listData.models) {
+              const modelsList = listData.models.map(m => m.name.replace("models/", "")).join(", ");
+              customMsg += `\n[사용 가능한 모델 리스트: ${modelsList}]`;
+            }
+          }
+        } catch (listErr) {
+          // ignore
+        }
+        
+        throw new Error(customMsg);
       }
 
       const data = await res.json();
