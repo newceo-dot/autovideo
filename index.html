@@ -1858,7 +1858,7 @@ ${inputText}
       );
     }
 
-    function KeywordPage({ keys, onBack, onOpenSettings }) {
+    function KeywordPage({ keys, onBack, onOpenSettings, onSelectKeywordVideo }) {
       const [field, setField] = useState("");
       const [subject, setSubject] = useState("");
       const [platform, setPlatform] = useState("네이버");
@@ -1934,6 +1934,50 @@ ${inputText}
         } catch (e) {
           const activeModel = keys.engine === "gemini" ? (keys.geminiModel || "gemini-2.0-flash") : "claude-3-5-sonnet";
           setErr(`황금 키워드 분석 실패 (호출 모델: ${activeModel}): ${e.message}\n(API 키가 올바른지 혹은 모델 설정을 다시 확인해 주세요.)`);
+        }
+        setLoading(false);
+      };
+
+      const createVideoFromKeyword = async (keywordStr, vType) => {
+        setLoading(true); setErr("");
+        try {
+          const sceneCount = vType === "shorts" ? 5 : 12;
+          const prompt = `당신은 영상 연출가 및 시나리오 전문 작가입니다. 유튜브 주제를 받아 매끄럽고 몰입감 높은 나레이션 스크립트와 이미지 생성 지시사항을 빌드해야 합니다.
+
+주제: "${keywordStr}"
+영상 규격: ${vType === "shorts" ? "세로 쇼츠 (총 60초 내외, 빠른 템포, 5개 장면 구성)" : "가로 롱폼 (총 10분 수준 구조, 12개 장면 구성)"}
+장면 수: ${sceneCount}개
+
+각 장면(scenes)마다 다음 필드를 포함하는 구조화된 데이터를 리턴해 주세요:
+1. id: 1부터 순서대로 시작하는 정수
+2. narration: 화자가 직접 읊는 오디오용 한국어 스크립트. 구어체로 작성할 것 (${vType === "shorts" ? "8~12초" : "30~45초"} 낭독 분량)
+3. emotion: 장면의 전반적 톤/감정 (예: 긴장감, 서정적, 미래지향적, 강렬함, 유머러스)
+4. imagePrompt: AI 이미지 생성기(Imagen 3/4)용 디테일한 영어 프롬프트 (30단어 이상. 카메라 앵글, 화풍, 빛 조건, 시각 요소 포함. 절대 텍스트나 로고를 묘사하지 말 것)
+5. seconds: 이 장면이 지속될 시간(초)
+
+[반환 형식] 다른 문자나 마크다운 포맷(예: \`\`\`json) 제외하고 순수 JSON 데이터만 리턴해 주세요:
+{
+  "title": "시청자 클릭을 극대화할 유튜브 타이틀",
+  "scenes": [
+    {
+      "id": 1,
+      "narration": "장면 나레이션 내용",
+      "emotion": "감정방향",
+      "imagePrompt": "영어 이미지 생성 프롬프트",
+      "seconds": 10
+    }
+  ]
+}`;
+
+          const txt = await askTextGenerator(prompt, keys.engine, keys, false);
+          const data = parseJSONResponse(txt);
+          if (!data.scenes || !Array.isArray(data.scenes)) {
+            throw new Error("대본 데이터 형식이 올바르지 않습니다.");
+          }
+          onSelectKeywordVideo(data.title || keywordStr, data.scenes, vType, keywordStr);
+        } catch (e) {
+          const activeModel = keys.engine === "gemini" ? (keys.geminiModel || "gemini-2.0-flash") : "claude-3-5-sonnet";
+          setErr(`대본 설계 오류 (호출 모델: ${activeModel}): ${e.message}`);
         }
         setLoading(false);
       };
@@ -2044,6 +2088,7 @@ ${result.seasonal}
                         <th style={{ padding: "12px 8px" }}>경쟁도</th>
                         <th style={{ padding: "12px 8px" }}>광고단가</th>
                         <th style={{ padding: "12px 8px" }}>추천도</th>
+                        <th style={{ padding: "12px 8px", textAlign: "center" }}>영상 만들기</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2054,6 +2099,22 @@ ${result.seasonal}
                           <td style={{ padding: "14px 8px" }}><span style={{ color: k.competition === "낮음" ? "#10b981" : "#f59e0b" }}>{k.competition}</span></td>
                           <td style={{ padding: "14px 8px" }}><span style={{ color: k.cpc === "높음" ? "#10b981" : "#8b95a5" }}>{k.cpc}</span></td>
                           <td style={{ padding: "14px 8px", color: "#f59e0b" }}>{"★".repeat(k.rating || 5)}{"☆".repeat(5-(k.rating || 5))}</td>
+                          <td style={{ padding: "14px 8px", display: "flex", gap: 6, justifyContent: "center" }}>
+                            <button onClick={() => createVideoFromKeyword(k.keyword, "shorts")}
+                              style={{
+                                background: "rgba(239, 68, 68, 0.15)", color: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.2)",
+                                padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
+                              }}>
+                              ✂️ 쇼츠
+                            </button>
+                            <button onClick={() => createVideoFromKeyword(k.keyword, "longform")}
+                              style={{
+                                background: "rgba(79, 134, 247, 0.15)", color: "#8b95a5", border: "1px solid rgba(79, 134, 247, 0.2)",
+                                padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.15s"
+                              }}>
+                              🎬 롱폼
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2204,6 +2265,13 @@ ${result.seasonal}
               keys={keys}
               onOpenSettings={() => setShowSettings(true)}
               onBack={() => setPage("home")}
+              onSelectKeywordVideo={(title, s, vType, kw) => {
+                setVideoTitle(title);
+                setScenes(s);
+                setType(vType);
+                setSelectedTopic(kw);
+                setPage("style");
+              }}
             />
           )}
           {page === "blog" && (
