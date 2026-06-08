@@ -358,7 +358,7 @@
       </div>
     );
 
-    const Header = ({ title, sub, step, total, onBack }) => (
+    const Header = ({ title, sub, step, total, onBack, onOpenSettings }) => (
       <div style={{ background: "rgba(13, 15, 26, 0.85)", borderBottom: "1px solid rgba(255, 255, 255, 0.06)", padding: "20px 32px", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(12px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1200, margin: "0 auto" }}>
           <div>
@@ -373,9 +373,17 @@
             </div>
             {sub && <div style={{ fontSize: 12, color: "#8b95a5", marginTop: 4, fontWeight: 400 }}>{sub}</div>}
           </div>
-          <div style={{ fontSize: 11, color: "#4e5968", textAlign: "right", fontFamily: "var(--font-eng)" }}>
-            <div style={{ color: "#4f86f7", fontWeight: 700, letterSpacing: "1px" }}>AI VIDEO AUTOMATION</div>
-            <div style={{ marginTop: 2 }}>POWERED BY CLAUDE & GEMINI</div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            {onOpenSettings && (
+              <button id="header-settings-btn" onClick={onOpenSettings} style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(255, 255, 255, 0.1)", color: "#e8eaf0", padding: "8px 16px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}>
+                <span>⚙️</span> API 설정
+              </button>
+            )}
+            <div style={{ fontSize: 11, color: "#4e5968", textAlign: "right", fontFamily: "var(--font-eng)" }}>
+              <div style={{ color: "#4f86f7", fontWeight: 700, letterSpacing: "1px" }}>AI VIDEO AUTOMATION</div>
+              <div style={{ marginTop: 2 }}>POWERED BY CLAUDE & GEMINI</div>
+            </div>
           </div>
         </div>
       </div>
@@ -427,6 +435,113 @@
     };
 
     // ============ PAGES ============
+
+    const SettingsModal = ({ isOpen, onClose, keys, setKeys }) => {
+      const [showKey, setShowKey] = useState(false);
+      const [showClaudeKey, setShowClaudeKey] = useState(false);
+
+      if (!isOpen) return null;
+
+      const updateKey = (field, value) => {
+        setKeys(prev => ({ ...prev, [field]: value }));
+      };
+
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, backdropFilter: "blur(6px)" }} className="animate-fade">
+          <div className="glass-card" style={{ width: "90%", maxWidth: 500, padding: 32, background: "var(--card-solid)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#e8eaf0" }}>🔑 API 설정</h3>
+              <button onClick={onClose} style={{ background: "none", border: "none", color: "#8b95a5", fontSize: 20, cursor: "pointer" }}>×</button>
+            </div>
+
+            {/* LLM Engine Setting */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 8, fontWeight: 700 }}>대본/스토리 생성 AI 엔진</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => updateKey("engine", "gemini")}
+                  style={{
+                    flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                    background: keys.engine === "gemini" ? "rgba(79, 134, 247, 0.15)" : "rgba(20, 24, 41, 0.4)",
+                    border: `1px solid ${keys.engine === "gemini" ? "#4f86f7" : "rgba(255,255,255,0.06)"}`,
+                    color: keys.engine === "gemini" ? "#fff" : "#8b95a5", transition: "all 0.2s"
+                  }}>
+                  Gemini 2.0 (추천)
+                </button>
+                <button onClick={() => updateKey("engine", "claude")}
+                  style={{
+                    flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                    background: keys.engine === "claude" ? "rgba(79, 134, 247, 0.15)" : "rgba(20, 24, 41, 0.4)",
+                    border: `1px solid ${keys.engine === "claude" ? "#4f86f7" : "rgba(255,255,255,0.06)"}`,
+                    color: keys.engine === "claude" ? "#fff" : "#8b95a5", transition: "all 0.2s"
+                  }}>
+                  Claude 3.5
+                </button>
+              </div>
+            </div>
+
+            {/* Gemini API Key */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 6, fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
+                <span>Google API Key (Gemini/Imagen)</span>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ color: "#4f86f7", textDecoration: "none" }}>무료 발급 →</a>
+              </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showKey ? "text" : "password"}
+                  value={keys.geminiKey}
+                  onChange={(e) => updateKey("geminiKey", e.target.value)}
+                  placeholder="AIzaSy... (Gemini/Imagen 구동용)"
+                  className="form-input"
+                  style={{ paddingRight: "40px", fontSize: "13px" }}
+                />
+                <button onClick={() => setShowKey(!showKey)}
+                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#4e5968", cursor: "pointer" }}>
+                  {showKey ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+
+            {/* Claude API Key & Proxy */}
+            {keys.engine === "claude" && (
+              <div className="animate-slideup" style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 6, fontWeight: 700 }}>Claude API Key</div>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showClaudeKey ? "text" : "password"}
+                      value={keys.claudeKey}
+                      onChange={(e) => updateKey("claudeKey", e.target.value)}
+                      placeholder="sk-ant-api03..."
+                      className="form-input"
+                      style={{ paddingRight: "40px", fontSize: "13px" }}
+                    />
+                    <button onClick={() => setShowClaudeKey(!showClaudeKey)}
+                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#4e5968", cursor: "pointer" }}>
+                      {showClaudeKey ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 12, marginBottom: 6, fontWeight: 700 }}>CORS 프록시 주소 (선택)</div>
+                  <input
+                    value={keys.claudeProxy}
+                    onChange={(e) => updateKey("claudeProxy", e.target.value)}
+                    placeholder="https://cors-anywhere.herokuapp.com/https://api.anthropic.com"
+                    className="form-input"
+                    style={{ fontSize: "13px" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <button onClick={onClose} className="btn-gradient" style={{ width: "100%", padding: 12, fontSize: 14, marginTop: 10 }}>
+              설정 저장 후 닫기
+            </button>
+          </div>
+        </div>
+      );
+    };
 
     function HomePage({ onSelect }) {
       const [hov, setHov] = useState("");
@@ -502,7 +617,7 @@
       );
     }
 
-    function TrendPage({ type, keys, onNext, onBack }) {
+    function TrendPage({ type, keys, onNext, onBack, onOpenSettings }) {
       const [keyword, setKeyword] = useState("");
       const [category, setCategory] = useState("");
       const [loading, setLoading] = useState(false);
@@ -544,7 +659,7 @@
       return (
         <div style={{ minHeight: "100vh" }} className="animate-fade">
           {loading && <LoadingOverlay text={`실시간 뉴스 분석 중 (${keys.engine.toUpperCase()}엔진 + 검색 연동)...`} />}
-          <Header title="실시간 트렌드 수집" sub="구글 실시간 검색 기반으로 가장 영향력 있는 영상 토픽을 구성합니다" step={1} total={5} onBack={onBack} />
+          <Header title="실시간 트렌드 수집" sub="구글 실시간 검색 기반으로 가장 영향력 있는 영상 토픽을 구성합니다" step={1} total={5} onBack={onBack} onOpenSettings={onOpenSettings} />
           
           <div style={{ maxWidth: 680, margin: "40px auto", padding: "0 24px" }}>
             <div className="glass-card" style={{ padding: "32px" }}>
@@ -583,7 +698,7 @@
       );
     }
 
-    function TopicSelectPage({ topics: initialTopics, type, keyword, category, keys, onNext, onBack }) {
+    function TopicSelectPage({ topics: initialTopics, type, keyword, category, keys, onNext, onBack, onOpenSettings }) {
       const [topics, setTopics] = useState(initialTopics);
       const [selected, setSelected] = useState("");
       const [loading, setLoading] = useState(false);
@@ -664,7 +779,7 @@
       return (
         <div style={{ minHeight: "100vh" }} className="animate-fade">
           {loading && <LoadingOverlay text="스토리 시나리오 & 이미지 프롬프트 기획 설계 중..." />}
-          <Header title="추천 주제 선택" sub="AI 분석으로 도출된 트렌드 목록 중 최적의 아이디어를 선정해 주세요" step={2} total={5} onBack={onBack} />
+          <Header title="추천 주제 선택" sub="AI 분석으로 도출된 트렌드 목록 중 최적의 아이디어를 선정해 주세요" step={2} total={5} onBack={onBack} onOpenSettings={onOpenSettings} />
           
           <div style={{ maxWidth: 720, margin: "30px auto", padding: "0 24px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -713,7 +828,7 @@
       );
     }
 
-    function StylePage({ keys, setKeys, style, setStyle, charType, setCharType, onNext, onBack }) {
+    function StylePage({ keys, setKeys, style, setStyle, charType, setCharType, onNext, onBack, onOpenSettings }) {
       const [showKey, setShowKey] = useState(false);
       const [showClaudeKey, setShowClaudeKey] = useState(false);
 
@@ -723,7 +838,7 @@
 
       return (
         <div style={{ minHeight: "100vh" }} className="animate-fade">
-          <Header title="엔진 및 그래픽 설정" sub="대본 작성용 AI 인프라와 이미지 화풍 모델을 설정합니다" step={3} total={5} onBack={onBack} />
+          <Header title="엔진 및 그래픽 설정" sub="대본 작성용 AI 인프라와 이미지 화풍 모델을 설정합니다" step={3} total={5} onBack={onBack} onOpenSettings={onOpenSettings} />
           
           <div style={{ maxWidth: 680, margin: "32px auto", padding: "0 24px" }}>
             
@@ -862,7 +977,7 @@
       );
     }
 
-    function GeneratePage({ title, scenes, style, charType, keys, setKeys, images, setImages, onNext, onBack }) {
+    function GeneratePage({ title, scenes, style, charType, keys, setKeys, images, setImages, onNext, onBack, onOpenSettings }) {
       const [genIdx, setGenIdx] = useState(-1);
       const [err, setErr] = useState("");
       const [done, setDone] = useState(false);
@@ -908,7 +1023,7 @@
 
       return (
         <div style={{ minHeight: "100vh" }} className="animate-fade">
-          <Header title="스토리 일러스트 생성" sub={`🎬 ${title}`} step={4} total={5} onBack={onBack} />
+          <Header title="스토리 일러스트 생성" sub={`🎬 ${title}`} step={4} total={5} onBack={onBack} onOpenSettings={onOpenSettings} />
 
           {/* Control Bar */}
           <div style={{ background: "rgba(13, 15, 26, 0.9)", borderBottom: "1px solid rgba(255, 255, 255, 0.06)", padding: "14px 32px", position: "sticky", top: 83, zIndex: 90, backdropFilter: "blur(10px)" }}>
@@ -1035,7 +1150,7 @@
       );
     }
 
-    function TTSPage({ scenes, images, title, onBack }) {
+    function TTSPage({ scenes, images, title, onBack, onOpenSettings }) {
       const [voices, setVoices] = useState([]);
       const [voice, setVoice] = useState("");
       const [playing, setPlaying] = useState(-1);
@@ -1139,7 +1254,7 @@
 
       return (
         <div style={{ minHeight: "100vh" }} className="animate-fade">
-          <Header title="내레이션 오디오 & 추출" sub={`🎬 ${title}`} step={5} total={5} onBack={onBack} />
+          <Header title="내레이션 오디오 & 추출" sub={`🎬 ${title}`} step={5} total={5} onBack={onBack} onOpenSettings={onOpenSettings} />
 
           <div style={{ maxWidth: 840, margin: "32px auto", padding: "0 24px" }}>
             
@@ -1276,7 +1391,7 @@
       );
     }
 
-    function BlogConvertPage({ type, keys, onNext, onBack }) {
+    function BlogConvertPage({ type, keys, onNext, onBack, onOpenSettings }) {
       const [blogText, setBlogText] = useState("");
       const [blogUrl, setBlogUrl] = useState("");
       const [convertType, setConvertType] = useState("longform");
@@ -1337,7 +1452,7 @@ ${inputText}
       return (
         <div style={{ minHeight: "100vh" }} className="animate-fade">
           {loading && <LoadingOverlay text="📝 블로그 구조 분석 및 유튜브 대본 변환 중..." />}
-          <Header title="블로그 → 유튜브 변환기" sub="텍스트 중심의 블로그 원고를 영상에 맞는 시각 시나리오로 컴파일합니다" onBack={onBack} />
+          <Header title="블로그 → 유튜브 변환기" sub="텍스트 중심의 블로그 원고를 영상에 맞는 시각 시나리오로 컴파일합니다" onBack={onBack} onOpenSettings={onOpenSettings} />
           
           <div style={{ maxWidth: 700, margin: "32px auto", padding: "0 24px" }}>
             <div className="glass-card" style={{ padding: "32px" }}>
@@ -1424,6 +1539,8 @@ ${inputText}
       const [charType, setCharType] = useState("외국인 모델");
       const [images, setImages] = useState({});
 
+      const [showSettings, setShowSettings] = useState(false);
+
       // State for keeping API keys and selected LLM engine
       const [keys, setKeys] = useState(() => {
         return {
@@ -1444,6 +1561,8 @@ ${inputText}
 
       return (
         <div>
+          <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} keys={keys} setKeys={setKeys} />
+
           {page === "home" && (
             <HomePage onSelect={(t, action) => { setType(t); setPage(action || "trend"); }} />
           )}
@@ -1451,6 +1570,7 @@ ${inputText}
             <BlogConvertPage
               type={type}
               keys={keys}
+              onOpenSettings={() => setShowSettings(true)}
               onNext={(t, s, ctype, summary) => {
                 setVideoTitle(t); setScenes(s); setType(ctype);
                 setBlogSummary(summary || ""); setPage("style");
@@ -1462,6 +1582,7 @@ ${inputText}
             <TrendPage
               type={type}
               keys={keys}
+              onOpenSettings={() => setShowSettings(true)}
               onNext={(arr, kw, cat) => { setTopics(arr); setKeyword(kw || ""); setCategory(cat || ""); setPage("topic_select"); }}
               onBack={() => setPage("home")}
             />
@@ -1469,6 +1590,7 @@ ${inputText}
           {page === "topic_select" && (
             <TopicSelectPage
               topics={topics} type={type} keyword={keyword} category={category} keys={keys}
+              onOpenSettings={() => setShowSettings(true)}
               onNext={(t, s, topic) => { setVideoTitle(t); setScenes(s); setSelectedTopic(topic); setPage("style"); }}
               onBack={() => setPage("trend")}
             />
@@ -1481,6 +1603,7 @@ ${inputText}
               setStyle={setStyle}
               charType={charType}
               setCharType={setCharType}
+              onOpenSettings={() => setShowSettings(true)}
               onNext={() => setPage("generate")}
               onBack={() => {
                 // If it was converted from blog, go back to blog, otherwise to topic_select
@@ -1497,6 +1620,7 @@ ${inputText}
               title={videoTitle} scenes={scenes} style={style}
               charType={charType} keys={keys} setKeys={setKeys}
               images={images} setImages={setImages}
+              onOpenSettings={() => setShowSettings(true)}
               onNext={() => setPage("tts")}
               onBack={() => setPage("style")}
             />
@@ -1504,6 +1628,7 @@ ${inputText}
           {page === "tts" && (
             <TTSPage
               scenes={scenes} images={images} title={videoTitle}
+              onOpenSettings={() => setShowSettings(true)}
               onBack={() => setPage("generate")}
             />
           )}
