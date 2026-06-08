@@ -628,11 +628,12 @@
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: 900 }}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: 1200 }}>
             {[
               { id: "shorts", icon: "✂️", title: "쇼츠 영상", desc: "60초 미만의 강렬하고 압축적인 세로형 숏폼 비디오 대본 생성", tag: "빠른 제작", color: "#ef4444", action: "trend" },
               { id: "longform", icon: "🎬", title: "롱폼 영상", desc: "10분 내외의 논리적 구조와 심층적인 해설을 제공하는 가로형 비디오", tag: "강력 추천", color: "#4f86f7", action: "trend" },
               { id: "blog", icon: "📝", title: "블로그 변환", desc: "네이버, 티스토리 등 작성된 텍스트/URL을 분석하여 비디오 스크립트화", tag: "NEW 트렌드", color: "#10b981", action: "blog" },
+              { id: "keyword", icon: "🔑", title: "황금 키워드", desc: "검색량은 많고 경쟁은 낮은 고단가 블로그 수익화 키워드 발굴", tag: "수익 극대화", color: "#f59e0b", action: "keyword" },
             ].map((item) => (
               <div key={item.id}
                 id={`home-card-${item.id}`}
@@ -1578,6 +1579,294 @@ ${inputText}
       );
     }
 
+    function KeywordPage({ keys, onBack, onOpenSettings }) {
+      const [field, setField] = useState("");
+      const [subject, setSubject] = useState("");
+      const [platform, setPlatform] = useState("네이버");
+      const [purpose, setPurpose] = useState("수익화");
+      const [loading, setLoading] = useState(false);
+      const [err, setErr] = useState("");
+      const [result, setResult] = useState(null);
+
+      const runAnalysis = async () => {
+        if (!field.trim()) {
+          setErr("분야/주제를 입력해 주세요.");
+          return;
+        }
+        setLoading(true);
+        setErr("");
+        setResult(null);
+
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1;
+
+        const prompt = `당신은 블로그 수익 극대화를 위한 황금 키워드 발굴 전문가입니다.
+검색량은 많고 경쟁(발행량)은 낮은 "황금 키워드"를 찾아 분석해주세요.
+
+[분석 타겟 및 요구 조건]
+- 분야/주제: "${field}"
+- 블로그 상세 주제: "${subject || '없음'}"
+- 주 발행 플랫폼: ${platform}
+- 발행 목적: ${purpose === '수익화' ? '수익 극대화 (광고 단가/CPC 중심)' : '방문자수 증가 (트래픽/검색량 중심)'}
+- 현재 시기: ${currentMonth}월 (시즌 키워드 추천 가이드에 반영할 것)
+
+[황금 키워드 정의]
+- 월 검색량 1,000회 이상
+- 블로그 발행량 10,000건 미만
+- 광고단가(CPC)가 높은 키워드 (수익화 유리)
+- 계절성보다 상시 검색되는 키워드 우선
+
+[반환 데이터 요구조건]
+반드시 다음 JSON 형식으로만 정확하게 결과를 작성해 주세요 (마크다운 백틱 \`\`\`json 등 절대 사용 금지, 순수 JSON만 반환):
+{
+  "keywords": [
+    {
+      "keyword": "키워드명 1",
+      "searchVolume": "예상 검색량 (예: 2,500회)",
+      "competition": "낮음 또는 보통",
+      "cpc": "높음 또는 보통",
+      "rating": 5,
+      "reason": "검색량 대비 문서수가 적어 상위 노출이 매우 유리하고 관련 광고 단가가 높음."
+    }
+  ],
+  "strategies": {
+    "main": "제목 활용 메인 키워드 배치 전략 설명...",
+    "sub": "본문 소제목 및 자연스러운 노출 빈도 전략 설명...",
+    "lsi": "동의어 및 연관 키워드 맥락 배치 전략 설명...",
+    "longtail": "경쟁이 적고 구매전환율을 높일 수 있는 3단어 조합 전략 설명..."
+  },
+  "types": {
+    "revenue": ["수익형 키워드 1", "수익형 키워드 2"],
+    "traffic": ["트래픽형 키워드 1", "트래픽형 키워드 2"],
+    "conversion": ["전환형 키워드 1", "전환형 키워드 2"],
+    "growth": ["성장형 키워드 1", "성장형 키워드 2"]
+  },
+  "seasonal": "${currentMonth}월 계절성에 맞는 시즌 키워드 추천 및 작성 팁"
+}
+(keywords는 반드시 총 10개를 배열에 꽉 채워서 채워주세요.)`;
+
+        try {
+          const txt = await askTextGenerator(prompt, keys.engine, keys, false);
+          const data = parseJSONResponse(txt);
+          if (!data.keywords || !Array.isArray(data.keywords)) {
+            throw new Error("키워드 데이터 구조가 올바르지 않습니다.");
+          }
+          setResult(data);
+        } catch (e) {
+          const activeModel = keys.engine === "gemini" ? (keys.geminiModel || "gemini-2.0-flash") : "claude-3-5-sonnet";
+          setErr(`황금 키워드 분석 실패 (호출 모델: ${activeModel}): ${e.message}\n(API 키가 올바른지 혹은 모델 설정을 다시 확인해 주세요.)`);
+        }
+        setLoading(false);
+      };
+
+      const downloadReport = () => {
+        if (!result) return;
+        const textContent = `[황금 키워드 분석 리포트]
+발행일자: ${new Date().toLocaleDateString("ko-KR")}
+주제: ${field} | 블로그 상세 컨셉: ${subject || '없음'}
+플랫폼: ${platform} | 목적: ${purpose === "수익화" ? "수익화 (고단가 중심)" : "방문자수 증가 (트래픽 중심)"}
+
+📊 황금 키워드 분석표
+${result.keywords.map((k, i) => `${i+1}. 키워드: ${k.keyword} | 검색량: ${k.searchVolume} | 경쟁도: ${k.competition} | 광고단가: ${k.cpc} | 추천도: ${'★'.repeat(k.rating)}
+   이유: ${k.reason}`).join('\n')}
+
+📌 키워드 활용 전략:
+- 메인 키워드: ${result.strategies.main}
+- 서브 키워드: ${result.strategies.sub}
+- LSI 키워드: ${result.strategies.lsi}
+- 롱테일 키워드: ${result.strategies.longtail}
+
+🏷️ 키워드 유형별 분류:
+- 수익형(💰): ${result.types.revenue.join(', ')}
+- 트래픽형(📈): ${result.types.traffic.join(', ')}
+- 전환형(🎯): ${result.types.conversion.join(', ')}
+- 성장형(🌱): ${result.types.growth.join(', ')}
+
+📅 시즌 키워드 추천 가이드:
+${result.seasonal}
+`;
+        const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${field.substring(0, 10)}_황금키워드_리포트.txt`;
+        a.click();
+      };
+
+      return (
+        <div style={{ minHeight: "100vh" }} className="animate-fade">
+          {loading && <LoadingOverlay text="🔍 조건에 맞는 황금 키워드 탐색 및 경쟁률 분석 중..." />}
+          <Header title="황금 키워드 발굴기" sub="검색량은 많고 경쟁은 낮아 상위 노출에 유리한 황금 키워드를 발굴합니다" onBack={onBack} onOpenSettings={onOpenSettings} />
+
+          <div style={{ maxWidth: 840, margin: "32px auto", padding: "0 24px" }}>
+            <div className="glass-card" style={{ padding: "32px", marginBottom: 24 }}>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 13, marginBottom: 8, fontWeight: 700 }}>1. 관심 분야/주제</div>
+                  <input
+                    id="kw-field-input"
+                    value={field} onChange={e => setField(e.target.value)}
+                    placeholder="예: 재테크, 맛집, 육아, IT/테크, 여행 등"
+                    className="form-input"
+                  />
+                </div>
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 13, marginBottom: 8, fontWeight: 700 }}>2. 상세 블로그 컨셉/주제 (선택)</div>
+                  <input
+                    id="kw-subject-input"
+                    value={subject} onChange={e => setSubject(e.target.value)}
+                    placeholder="예: 직장인 1억 모으기 재테크 블로그"
+                    className="form-input"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 28 }}>
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 13, marginBottom: 12, fontWeight: 700 }}>3. 주 발행 플랫폼</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {["네이버", "티스토리", "워드프레스"].map(p => (
+                      <Chip key={p} label={p} active={platform === p} onClick={() => setPlatform(p)} color="#f59e0b" />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#8b95a5", fontSize: 13, marginBottom: 12, fontWeight: 700 }}>4. 발행 목적</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {["수익화", "방문자수 증가"].map(p => (
+                      <Chip key={p} label={p === "수익화" ? "수익화 (고단가 중심)" : "방문자수 증가 (트래픽 중심)"} active={purpose === p} onClick={() => setPurpose(p)} color="#f59e0b" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <ErrorBox msg={err} />
+
+              <PrimaryBtn id="kw-analyze-submit-btn" onClick={runAnalysis} disabled={!field.trim()} style={{ width: "100%", padding: "14px 24px", fontSize: 15, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 4px 15px rgba(245, 158, 11, 0.3)" }}>
+                🔑 황금 키워드 발굴 시작하기
+              </PrimaryBtn>
+            </div>
+
+            {result && (
+              <div className="animate-slideup">
+                
+                {/* 1. Keyword Table */}
+                <div className="glass-card" style={{ padding: "28px", marginBottom: 24, overflowX: "auto" }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#e8eaf0", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>📊</span> 황금 키워드 분석표 (10개)
+                  </h3>
+                  
+                  <table style={{ width: "100%", borderCollapse: "collapse", color: "#e8eaf0", fontSize: 13, textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.08)", color: "#8b95a5", fontWeight: 700 }}>
+                        <th style={{ padding: "12px 8px" }}>키워드</th>
+                        <th style={{ padding: "12px 8px" }}>예상 검색량</th>
+                        <th style={{ padding: "12px 8px" }}>경쟁도</th>
+                        <th style={{ padding: "12px 8px" }}>광고단가</th>
+                        <th style={{ padding: "12px 8px" }}>추천도</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.keywords.map((k, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          <td style={{ padding: "14px 8px", fontWeight: 700, color: "#f59e0b" }}>{k.keyword}</td>
+                          <td style={{ padding: "14px 8px" }}><span style={{ background: "rgba(79, 134, 247, 0.1)", color: "#4f86f7", padding: "2px 8px", borderRadius: 4, fontSize: 11 }}>{k.searchVolume}</span></td>
+                          <td style={{ padding: "14px 8px" }}><span style={{ color: k.competition === "낮음" ? "#10b981" : "#f59e0b" }}>{k.competition}</span></td>
+                          <td style={{ padding: "14px 8px" }}><span style={{ color: k.cpc === "높음" ? "#10b981" : "#8b95a5" }}>{k.cpc}</span></td>
+                          <td style={{ padding: "14px 8px", color: "#f59e0b" }}>{"★".repeat(k.rating || 5)}{"☆".repeat(5-(k.rating || 5))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 2. Keyword Reasons */}
+                <div className="glass-card" style={{ padding: "28px", marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#e8eaf0", marginBottom: 16 }}>🎯 키워드 선정 및 추천 사유</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    {result.keywords.map((k, idx) => (
+                      <div key={idx} style={{ background: "rgba(20, 24, 41, 0.5)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 8, padding: "14px" }}>
+                        <div style={{ fontWeight: 800, color: "#e8eaf0", fontSize: 13, marginBottom: 4 }}>{idx + 1}. {k.keyword}</div>
+                        <div style={{ color: "#8b95a5", fontSize: 11, lineHeight: 1.5 }}>{k.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Keyword strategy */}
+                <div className="glass-card" style={{ padding: "28px", marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#e8eaf0", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>📌</span> 키워드 활용 전략
+                  </h3>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {[
+                      { icon: "👑", title: "1. 메인 키워드 전략 (제목)", desc: result.strategies.main },
+                      { icon: "📄", title: "2. 서브 키워드 전략 (본문)", desc: result.strategies.sub },
+                      { icon: "🔗", title: "3. LSI 키워드 전략 (연관 검색어)", desc: result.strategies.lsi },
+                      { icon: "🎯", title: "4. 롱테일 키워드 전략 (조합)", desc: result.strategies.longtail },
+                    ].map((s, idx) => (
+                      <div key={idx} style={{ display: "flex", gap: 12, background: "rgba(20, 24, 41, 0.3)", borderRadius: 8, padding: "16px", border: "1px solid rgba(255,255,255,0.03)" }}>
+                        <span style={{ fontSize: 20 }}>{s.icon}</span>
+                        <div>
+                          <div style={{ fontWeight: 800, color: "#e8eaf0", fontSize: 13, marginBottom: 4 }}>{s.title}</div>
+                          <div style={{ color: "#8b95a5", fontSize: 12, lineHeight: 1.6 }}>{s.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Categorized tags */}
+                <div className="glass-card" style={{ padding: "28px", marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#e8eaf0", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>🏷️</span> 키워드 유형별 분류
+                  </h3>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    {[
+                      { title: "💰 수익형 키워드", desc: "광고단가가 특히 높아서 노출 시 애드센스/애드포스트 수익 극대화에 유리합니다.", items: result.types.revenue || [] },
+                      { title: "📈 트래픽형 키워드", desc: "검색량이 풍부하여 단기간 블로그 유입수 및 트래픽을 늘리기 좋습니다.", items: result.types.traffic || [] },
+                      { title: "🎯 전환형 키워드", desc: "구매 의도나 비교/추천 등 특정 액션으로의 전환율이 높은 키워드입니다.", items: result.types.conversion || [] },
+                      { title: "🌱 성장형 키워드", desc: "현재 경쟁은 극도로 낮지만 검색 유입 비중이 점점 차오르는 라이징 트렌드입니다.", items: result.types.growth || [] },
+                    ].map((type, idx) => (
+                      <div key={idx} style={{ background: "rgba(20, 24, 41, 0.4)", borderRadius: 10, padding: "18px", border: "1px solid rgba(255,255,255,0.04)" }}>
+                        <div style={{ fontWeight: 800, color: "#e8eaf0", fontSize: 14, marginBottom: 6 }}>{type.title}</div>
+                        <div style={{ color: "#8b95a5", fontSize: 11, marginBottom: 12, lineHeight: 1.4 }}>{type.desc}</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {type.items.map((it, i) => (
+                            <span key={i} style={{ background: "rgba(245, 158, 11, 0.1)", color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: 20, padding: "4px 10px", fontSize: 11, fontWeight: 700 }}>
+                              {it}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 5. Seasonal Keywords */}
+                <div style={{ background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: 14, padding: "24px", marginBottom: 28 }}>
+                  <h4 style={{ color: "#f59e0b", fontSize: 15, fontWeight: 800, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>📅</span> 시즌 및 시기별 키워드 추천 가이드
+                  </h4>
+                  <div style={{ color: "#8b95a5", fontSize: 13, lineHeight: 1.8 }}>
+                    {result.seasonal}
+                  </div>
+                </div>
+
+                {/* Download btn */}
+                <PrimaryBtn id="kw-download-btn" onClick={downloadReport} style={{ width: "100%", padding: "14px 24px", fontSize: 15, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 4px 15px rgba(16, 185, 129, 0.3)" }}>
+                  💾 황금 키워드 분석 리포트 다운로드 (.txt)
+                </PrimaryBtn>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     // ============ MAIN APP ============
 
     function App() {
@@ -1622,6 +1911,13 @@ ${inputText}
 
           {page === "home" && (
             <HomePage onSelect={(t, action) => { setType(t); setPage(action || "trend"); }} />
+          )}
+          {page === "keyword" && (
+            <KeywordPage
+              keys={keys}
+              onOpenSettings={() => setShowSettings(true)}
+              onBack={() => setPage("home")}
+            />
           )}
           {page === "blog" && (
             <BlogConvertPage
